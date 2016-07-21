@@ -1,6 +1,6 @@
 const Discord = require("discord.js");
 const config = require("./config.js");
-const request = require('request'); // require the request package - just so I don't have to use cURL.
+const ytdl = require('ytdl-core');
 
 const bot = new Discord.Client({autoReconnect: true});
 
@@ -9,7 +9,8 @@ let poll = [],
 	voiceChannel = 0,
 	textChannel = 0,
 	queue = [], // create queue as an empty array. URLs will be pushed here as users add them.
-    paused = false; // defines whether the playlist is paused. Without this, whenever the playlist is paused the bot thinks the song is finished and skips is. Not ideal.
+	paused = false; // defines whether the playlist is paused. Without this, whenever the playlist is paused the bot thinks the song is finished and skips is. Not ideal.
+
 
 ///////////////////
 // Commands List //
@@ -209,23 +210,27 @@ let commands = [
 			});
 		}
 	},
-    //Play command. Adds a song to the queue.
-    {
+  //Play command. Adds a song to the queue.
+  {
 		command: 'queue',
 		description: 'Plays the requested video, or adds it to the queue.',
-		params: ["Youtube URL"],
+		params: ["YouTube URL"],
 		execute: (m, p) => {
 			if(m.author.voiceChannel === bot.channels.get("type","voice")){
-				let videoId = getVideoId(p[1]);
-				play(videoId, m);
+				if(p[1].startsWith("http")){
+					play(m, p[1]);
+				}else{
+					bot.reply(m,"Please use a valid YouTube URL");
+					commandHelp(m, 'queue');
+				}
 			}else{
 				bot.reply(m,"Unauthorized. You're not in the same voicechannel as the bot.")
 			}
 		}
-    },
+  },
 
-    //Stops playback and clears the whole queue.
-    {
+  //Stops playback and clears the whole queue.
+  {
 		command: 'stop',
 		description: 'Stops the current song and clears the queue.',
 		params: [],
@@ -238,9 +243,9 @@ let commands = [
 				bot.reply(m,"Unauthorized. You're not in the same voicechannel as the bot.")
 			}
 		}
-    },
+  },
 
-    //Pauses playback. Sets the pause variable to true so that the checkQueue function doesn't think the song has ended.
+  //Pauses playback. Sets the pause variable to true so that the checkQueue function doesn't think the song has ended.
 	{
 		command: 'pause',
 		description: 'Pauses the current playlist.',
@@ -262,8 +267,8 @@ let commands = [
 		}
 	},
 
-    //Resumes the playlist, if it is paused.
-    {
+  //Resumes the playlist, if it is paused.
+  {
 		command: 'resume',
 		description: 'Resumes the playlist',
 		params: [],
@@ -281,24 +286,27 @@ let commands = [
 				bot.reply(m,"Unauthorized. You're not in the same voicechannel as the bot.")
 			}
 		}
-    },
+  },
 
-    //Skip the current song in the queue, play the next one.
-    {
+  //Skip the current song in the queue, play the next one.
+  {
 		command: 'skip',
 		description: 'Skips the current song.',
 		params: [],
 		execute: (m, p) => {
 			if(m.author.voiceChannel === bot.channels.get("type","voice")){
-				playNext();
+				console.log('test');
+				bot.voiceConnection.stopPlaying();
+				paused = false;
+				//playNext();
 			}else{
 				bot.reply(m,"Unauthorized. You're not in the same voicechannel as the bot.")
 			}
 		}
-    },
+  },
 
-    //Set the volume of the bot. 100% is loud. Very loud.
-    {
+  //Set the volume of the bot. 100% is loud. Very loud.
+  {
 		command: 'volume',
 		description: 'Sets the volume of the bot between 0-200%',
 		params: ['percentage'],
@@ -315,7 +323,7 @@ let commands = [
 				bot.reply(m,"Unauthorized. You're not in the same voicechannel as the bot.")
 			}
 		}
-    }
+  }
 ]
 
 ///////////////////////
@@ -357,7 +365,34 @@ bot.once('ready', () => {
 	checkQueue();
 });
 
-bot.loginWithToken(config.testbot);
+bot.loginWithToken(config.testbot).catch((e) => {
+  try {
+    console.log(e);
+  } catch (err) {
+    console.log(e);
+	}
+});
+
+process.on('uncaughtException', function(err) {
+  // Handle ECONNRESETs caused by `next` or `destroy`
+  if (err.code == 'ECONNRESET') {
+    // Yes, I'm aware this is really bad node code. However, the uncaught exception
+    // that causes this error is buried deep inside either discord.js, ytdl or node
+    // itself and after countless hours of trying to debug this issue I have simply
+    // given up. The fact that this error only happens *sometimes* while attempting
+    // to skip to the next video (at other times, I used to get an EPIPE, which was
+    // clearly an error in discord.js and was now fixed) tells me that this problem
+    // can actually be safely prevented using uncaughtException. Should this bother
+    // you, you can always try to debug the error yourself and make a PR.
+    console.log('Got an ECONNRESET! This is *probably* not an error. Stacktrace:');
+    console.log(err.stack);
+  } else {
+    // Normal error handling
+    console.log(err);
+    console.log(err.stack);
+    process.exit(0);
+  }
+});
 
 /////////////////////
 // Other functions //
@@ -504,28 +539,16 @@ function gameData(u,g){
 	}
 }
 
-function play(id, m) { // called when a user requests a song to add to the queue
-  let baseURL = "https://savedeo.com/download?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3D"; // using savedeo to download and play audio files.
-
-  request (baseURL + id, (err, res, body) => { // Append the youtube video ID to the base URL and request the page contents
-    if (!err && res.statusCode == 200) { // check that no errors are thrown and the HTTP response is 200 (success)
-      let cheerio = require('cheerio'), $ = cheerio.load(body); // load the response body with cheerio
-      let videoTitle = $('title').text(); // set the video title to the title of the page.
-      let audioUrl = $('#main div.clip table tbody tr th span.fa-music').first().parent().parent().find('td a').attr('href'); // horrible selector query to get the first URL to an audio file
-
-      queue.push({ // push this file to the queue
-        title: videoTitle, // this is all self-explanatory. Just storing data about the song.
-        user: m.author.username,
-        url: audioUrl
-      });
-
-      bot.sendMessage(m.channel, videoTitle+" has been added to the queue by "+m.author.username); // Tell everyone what song was added and by who.
-    }
-    else { // If 'err' exists, or response code is not 200.
-      bot.sendMessage(m.channel, "There was an issue handling your request."); // generic error message
-      console.log("Error requesting video: " + err); // log stuff
-    }
-  })
+function play(m, ytUrl) { // called when a user requests a song to add to the queue
+  ytdl.getInfo(ytUrl, function(error, info) {
+    let mus = ytdl.downloadFromInfo(info);
+    queue.push({
+    	title: info.title,
+    	user: m.author.username,
+    	stream: mus
+    });
+    bot.sendMessage(m.channel, info.title+" has been added to the queue by "+m.author.username); // Tell everyone what song was added and by who.
+	});
 }
 
 function checkQueue() { // called every 5 seconds.
@@ -535,40 +558,8 @@ function checkQueue() { // called every 5 seconds.
   setTimeout(checkQueue, 5000); // run this function again in 5 seconds
 }
 
-function playNext() { // called when a user runs the !stop command, or when a song ends
-  bot.voiceConnection.playFile(queue[0]['url'],function(a,e){console.log(a);console.log(e)}); // play the first song in the queue. This song is then removed, so the first song is the next song. Makes sense?
-  bot.sendMessage(textChannel, 'Now playing "'+queue[0]['title']+'", requested by '+queue[0]['user']); // more messaging
+function playNext() { // called when a user runs the /stop command, or when a song ends
+	bot.voiceConnection.playRawStream(queue[0].stream);
+  bot.sendMessage(textChannel, 'Now playing "'+queue[0].title+'", requested by '+queue[0].user); // more messaging
   queue.splice(0,1); // Remove the song we just played from the queue, so queue[0] is always the next song.
 }
-
-function getVideoId(v){
-    let searchToken = "?v=";
-	  var i = v.indexOf(searchToken);
-
-	  if(i == -1) {
-		  searchToken = "&v=";
-		  i = v.indexOf(searchToken);
-	  }
-
-	  if(i == -1) {
-		  searchToken = "youtu.be/";
-		  i = v.indexOf(searchToken);
-	  }
-
-	  if(i != -1) {
-		  var substr = v.substring(i + searchToken.length);
-		  var j = substr.indexOf("&");
-
-		  if(j == -1) {
-			  j = substr.indexOf("?");
-		  }
-
-		  if(j == -1) {
-			  return substr;
-		  } else {
-			  return substr.substring(0,j);
-		  }
-	  }
-
-	  return v;
-  }
