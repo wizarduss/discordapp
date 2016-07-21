@@ -27,9 +27,12 @@ build/Release
 # https://docs.npmjs.com/misc/faq#should-i-check-my-node-modules-folder-into-git
 node_modules
 
+# Contains sftp settings
 sftp-config.json
+
+# Contains bot tokens
 config.js
+
+# Other instances of the bot running on 2 servers
 wowbot.js
 livebot.js
-zeromain.js
-zerofunctions.js
