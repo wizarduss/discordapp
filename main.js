@@ -1,24 +1,29 @@
-let Discord = require("discord.js");
-let config = require("./config.js");
+const Discord = require("discord.js");
+const config = require("./config.js");
+const request = require('request'); // require the request package - just so I don't have to use cURL.
 
 const bot = new Discord.Client({autoReconnect: true});
 
-let poll = [];
-let tempPoll = "";
+let poll = [],
+	userGames = [],
+	voiceChannel = 0,
+	textChannel = 0,
+	queue = [], // create queue as an empty array. URLs will be pushed here as users add them.
+    paused = false; // defines whether the playlist is paused. Without this, whenever the playlist is paused the bot thinks the song is finished and skips is. Not ideal.
 
-let userGames = [];
+///////////////////
+// Commands List //
+///////////////////
 
 let commands = [
 	{
 		command: 'help',
 		description: 'Displays command list.',
-		inHelp: true,
 		params: [],
 		execute: (m, p) => {
 			let res = "***The following commands are currently available***\n";
 			for(i=0;i<commands.length; i++){
 				let c = commands[i];
-				if(!c.inHelp){continue;}
 				res += "***/"+c.command;
 				for(j=0;j<c.params.length;j++){
 					res += " <"+c.params[j]+">";
@@ -31,12 +36,12 @@ let commands = [
 	{
 		command: 'pollcreate',
 		description: 'Used to create a poll.',
-		inHelp: true,
 		params: [
 			'question'
 		],
 		execute: (m, p) => {
-			let q = p.substring(12,p.length);
+			p.shift();
+			let q = p.join(" ");
 			if(poll['question'] == undefined && q != ""){
 				createPoll(m, q);
 			}else if(q == ""){
@@ -45,17 +50,20 @@ let commands = [
 				bot.sendMessage(m.channel,"There is a poll with the same question running now.");
 				commandHelp(m, 'pollscore');
 				commandHelp(m, 'polladd');
-			}else{
-				tempPoll = m.content;
-				bot.sendMessage(m.channel,"Are you sure you want to overwrite the current poll \'"+poll['question']+"\"? Confirmation is required before new vote is cast.");
-				commandHelp(m, 'polloverwrite');
+			}else if(q != ""){
+				bot.awaitResponse(m,"Are you sure you want to overwrite the current poll \'"+poll['question']+"\"? Please confirm by typing ***confirm***", function(e, r){
+					if(r.content == "confirm"){
+						createPoll(r, q)
+					}else{
+						bot.sendMessage(m.channel,"No confirmation received, please send in a new pollcreate request.");
+					}
+				});
 			}
 		}
 	},
 	{
 		command: 'pollscore',
 		description: 'Displays scores for current poll',
-		inHelp: true,
 		params: [],
 		execute: (m, p) => {
 			if(poll['question'] !== undefined){
@@ -68,13 +76,13 @@ let commands = [
 	{
 		command: 'polladd',
 		description: 'Adds an option to the active poll.',
-		inHelp: true,
 		params: [
 			'option'
 		],
 		execute: (m, p) => {
 			if(poll['question'] !== undefined){
-				let o = p.substring(9,p.length);
+				p.shift();
+				let o = p.join(" ");
 				let res = "";
 				if(poll[o] == undefined){
 					poll[o] = 0;
@@ -91,7 +99,6 @@ let commands = [
 	{
 		command: 'pollclose',
 		description: 'Closes the current poll and displays final results.',
-		inHelp: true,
 		params: [],
 		execute: (m, p) => {
 			if(poll['question'] !== undefined){
@@ -103,33 +110,14 @@ let commands = [
 		}
 	},
 	{
-		command: 'polloverwrite',
-		description: 'Confirms creating of new poll subsequently closing the current poll.',
-		inHelp: false,
-		params: [],
-		execute: (m, p) => {
-			let q = tempPoll.substring(12,tempPoll.length);
-			if(poll['question'] == undefined && q != ""){
-				createPoll(m, q);
-			}else if(q == ""){
-				commandHelp(m, 'pollcreate');
-			}else if(poll['question'] !== undefined && q == ""){
-				bot.sendMessage(m.channel,"No new poll request to overwrite current poll with.");
-				commandHelp(m, 'pollcreate');
-			}else{
-				noPoll(m);
-			}
-		}
-	},
-	{
 		command: 'vote',
 		description: 'Adds a vote in the current poll',
-		inHelp: true,
 		params: [
 			'option'
 		],
 		execute: (m, p) => {
-			let o = p.substring(6,p.length);
+			p.shift();
+			let o = p.join(" ");
 			if(poll[o] !== undefined){
 				poll[o]++;
 				tempPoll = "";
@@ -142,7 +130,6 @@ let commands = [
 	{
 		command: 'timeplayed',
 		description: 'Returns your current time played (if in game)',
-		inHelp: true,
 		params: [],
 		execute: (m, p) => {
 			let started = 0;
@@ -175,7 +162,6 @@ let commands = [
 	{
 		command: 'yell',
 		description: 'YELLS!',
-		inHelp: true,
 		params: [
 			'message'
 		],
@@ -187,15 +173,218 @@ let commands = [
 	{
 		command: 'ping',
 		description: 'pong.',
-		inHelp: true,
 		params: [],
 		execute: (m, p) => {
 			bot.awaitResponse(m,"I ain't listening to you!",function(){
 				bot.reply(m.channel,"j/k, pong.");
 			});
 		}
-	}
+	},
+	{
+		command: 'summon',
+		description: 'Brings the bot to your voice channel',
+		params: [],
+		execute: (m, p) => {
+			if (m.author.voiceChannel === null) {
+				bot.reply(m, "you're not in a voice channel, you spoon.");
+			}
+			else {
+				let voicechannel = m.author.voiceChannel;
+
+				bot.joinVoiceChannel(voicechannel, (err, vc) => {
+					bot.reply(m, `joining your voice channel.`);
+				});
+			}
+	    }
+	},
+
+	//Gohome command, sends the bot back to its own voice channel - the ID for this channel is stored in the settings.json file.
+	{
+		command: 'gohome',
+		description: 'Sends the bot back to its default voice channel',
+		params: [],
+		execute: (m, p) => {
+			bot.joinVoiceChannel(voiceChannel, (err, vc) => {
+				bot.sendMessage(textChannel, `Connecting to default Channel.`);
+			});
+		}
+	},
+    //Play command. Adds a song to the queue.
+    {
+		command: 'queue',
+		description: 'Plays the requested video, or adds it to the queue.',
+		params: ["Youtube URL"],
+		execute: (m, p) => {
+			if(m.author.voiceChannel === bot.channels.get("type","voice")){
+				let videoId = getVideoId(p[1]);
+				play(videoId, m);
+			}else{
+				bot.reply(m,"Unauthorized. You're not in the same voicechannel as the bot.")
+			}
+		}
+    },
+
+    //Stops playback and clears the whole queue.
+    {
+		command: 'stop',
+		description: 'Stops the current song and clears the queue.',
+		params: [],
+		execute: (m, p) => {
+			if(m.author.voiceChannel === bot.channels.get("type","voice")){
+				bot.sendMessage(m.channel, "Stopping...");
+				bot.voiceConnection.stopPlaying();
+				queue = [];
+			}else{
+				bot.reply(m,"Unauthorized. You're not in the same voicechannel as the bot.")
+			}
+		}
+    },
+
+    //Pauses playback. Sets the pause variable to true so that the checkQueue function doesn't think the song has ended.
+	{
+		command: 'pause',
+		description: 'Pauses the current playlist.',
+		params: [],
+		execute: (m, p) => {
+			if(m.author.voiceChannel === bot.channels.get("type","voice")){
+				//Check if playback is already paused.
+				if (!paused) {
+					bot.voiceConnection.pause();
+					paused = true;
+					bot.sendMessage(m.channel, "Playback has been paused.");
+				}
+				else {
+					bot.sendMessage(m.channel, "Playback is already paused.");
+				}
+			}else{
+				bot.reply(m,"Unauthorized. You're not in the same voicechannel as the bot.")
+			}
+		}
+	},
+
+    //Resumes the playlist, if it is paused.
+    {
+		command: 'resume',
+		description: 'Resumes the playlist',
+		params: [],
+		execute: (m, p) => {
+			if(m.author.voiceChannel === bot.channels.get("type","voice")){
+				if (!paused) {
+					bot.sendMessage(m.channel, "Playback isn't paused.");
+				}
+				else {
+					bot.voiceConnection.resume();
+					paused = false
+					bot.sendMessage(m.channel, "Playback resumed.");
+				}
+			}else{
+				bot.reply(m,"Unauthorized. You're not in the same voicechannel as the bot.")
+			}
+		}
+    },
+
+    //Skip the current song in the queue, play the next one.
+    {
+		command: 'skip',
+		description: 'Skips the current song.',
+		params: [],
+		execute: (m, p) => {
+			if(m.author.voiceChannel === bot.channels.get("type","voice")){
+				playNext();
+			}else{
+				bot.reply(m,"Unauthorized. You're not in the same voicechannel as the bot.")
+			}
+		}
+    },
+
+    //Set the volume of the bot. 100% is loud. Very loud.
+    {
+		command: 'volume',
+		description: 'Sets the volume of the bot between 0-200%',
+		params: ['percentage'],
+		execute: (m, p) => {
+			if(m.author.voiceChannel === bot.channels.get("type","voice")){
+				if (p[1] <= 200 && p[1] >= 0) {
+					bot.voiceConnection.setVolume(p[1]/100); // volume is actually set between 0 and 2, but percentages are easier for users to understand.
+					bot.sendMessage(m.channel, `Setting volume to ${p[1]}%`);
+				}
+				else {
+					bot.sendMessage(m.channel, 'Volume must be set between 0% and 200%. '+p[1]+' is not a valid volume.');
+				}
+			}else{
+				bot.reply(m,"Unauthorized. You're not in the same voicechannel as the bot.")
+			}
+		}
+    }
 ]
+
+///////////////////////
+// Create bot events //
+///////////////////////
+
+bot.on('message', (m) => {
+  if (m.author.id !== bot.user.id) { // <--- check that the bot didn't send the message. Very important. Mistakes were made.
+    if (m.channel.topic !== undefined) { // <--- If channel topic is undefined, then this is a DM to the bot. We don't want to run commands in a DM. It breaks things.
+      if (m.content[0] == "/") { // <--- Check if the first character of the message is a !.
+        executeCommand(m, m.content.substring(1)); // If the first character is !, run executeCommand.
+      }
+    }
+  }
+});
+
+
+bot.on("presence", (usrOld,usrNew) => {
+	if(usrOld.game !== usrNew.game){
+		if(usrNew.game !== null){
+			gameData(usrNew,true);
+		}else{
+			gameData(usrOld);
+		}
+	}
+});
+
+bot.on("serverNewMember", (s,u) => {
+	bot.sendMessage(s.defaultChannel,u.mention()+" Welcome to the server: "+s.name);
+});
+
+bot.once('ready', () => {
+	textChannel = bot.channels.get("name","general").id;
+	voiceChannel = bot.channels.get("name","General").id;
+	bot.joinVoiceChannel(voiceChannel, (err, vc) => { //Join the default voice channel defined in the settings.json file
+		bot.sendMessage(textChannel, "Bot "+bot.user.username+" connected. Type ***/help*** to view a list of commands."); //The bot will say this message every time it connects.
+	});
+
+	checkQueue();
+});
+
+bot.loginWithToken(config.testbot);
+
+/////////////////////
+// Other functions //
+/////////////////////
+
+function executeCommand(m, c) { // Called when the user types a command in chat
+  let params = c.split(' '); // Split the command into individual words.
+  let command = null; // used in the loop below
+
+  for (let i = 0; i < commands.length; i++) { // Loop through commands array
+    if (commands[i].command == params[0].toLowerCase()) { // Check if command matches the one typed
+      command = commands[i]; // Set it to variable 'command'. Maybe break out of the loop. I'll sort that out later.
+    }
+  }
+
+  if (command !== null) { // If no matching command was set in the loop, 'command' will still be null. Otherwise, run the command.
+    if (params.length-1 < command.params.length) { // check that the command has enough parameters. Might move this check to the command itself, since some params are optional.
+      bot.reply(m, 'Insufficient parameters'); // Reply to the user, tell them to add params.
+      commandHelp(m, command.command); // Display help message for specific command.
+    }
+    else {
+      command.execute(m, params); // Run the 'execute' function stored in the command object.
+    }
+  }else{
+  	bot.sendMessage(m.channel,"Unknown command");
+  }
+}
 
 function commandHelp(m, p) {
 	let res = "";
@@ -315,35 +504,71 @@ function gameData(u,g){
 	}
 }
 
-bot.on("message", (m) => {
-	let p = m.content;
-	let com = (p.indexOf(" ") == -1)?p.substring(1,p.length):p.substring(1,p.indexOf(" "));
-	let knownCommand = false;
-	if(m.author.id !== bot.user.id && p.substring(0,1) == "/"){
-		for(i=0;i<commands.length;i++){
-			let c = commands[i];
-			if(com == c.command){
-				c.execute(m, p);
-				knownCommand = true;
-				break;
-			}
-		}
-		if(!knownCommand){bot.sendMessage(m.channel,"Unknown command")}
-	}
-});
+function play(id, m) { // called when a user requests a song to add to the queue
+  let baseURL = "https://savedeo.com/download?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3D"; // using savedeo to download and play audio files.
 
-bot.on("presence", (usrOld,usrNew) => {
-	if(usrOld.game !== usrNew.game){
-		if(usrNew.game !== null){
-			gameData(usrNew,true);
-		}else{
-			gameData(usrOld);
-		}
-	}
-});
+  request (baseURL + id, (err, res, body) => { // Append the youtube video ID to the base URL and request the page contents
+    if (!err && res.statusCode == 200) { // check that no errors are thrown and the HTTP response is 200 (success)
+      let cheerio = require('cheerio'), $ = cheerio.load(body); // load the response body with cheerio
+      let videoTitle = $('title').text(); // set the video title to the title of the page.
+      let audioUrl = $('#main div.clip table tbody tr th span.fa-music').first().parent().parent().find('td a').attr('href'); // horrible selector query to get the first URL to an audio file
 
-bot.on("serverNewMember", (s,u) => {
-	bot.sendMessage(s.defaultChannel,u.mention()+" Welcome to the server: "+s.name);
-})
+      queue.push({ // push this file to the queue
+        title: videoTitle, // this is all self-explanatory. Just storing data about the song.
+        user: m.author.username,
+        url: audioUrl
+      });
 
-bot.loginWithToken(config.testbot);
+      bot.sendMessage(m.channel, videoTitle+" has been added to the queue by "+m.author.username); // Tell everyone what song was added and by who.
+    }
+    else { // If 'err' exists, or response code is not 200.
+      bot.sendMessage(m.channel, "There was an issue handling your request."); // generic error message
+      console.log("Error requesting video: " + err); // log stuff
+    }
+  })
+}
+
+function checkQueue() { // called every 5 seconds.
+  if (queue.length !== 0 && !bot.voiceConnection.playing && !paused) { // check that the queue is not empty, the bot is not playing something, and the playlist is not paused.
+    playNext(); // play next song if above conditions are met
+  }
+  setTimeout(checkQueue, 5000); // run this function again in 5 seconds
+}
+
+function playNext() { // called when a user runs the !stop command, or when a song ends
+  bot.voiceConnection.playFile(queue[0]['url'],function(a,e){console.log(a);console.log(e)}); // play the first song in the queue. This song is then removed, so the first song is the next song. Makes sense?
+  bot.sendMessage(textChannel, 'Now playing "'+queue[0]['title']+'", requested by '+queue[0]['user']); // more messaging
+  queue.splice(0,1); // Remove the song we just played from the queue, so queue[0] is always the next song.
+}
+
+function getVideoId(v){
+    let searchToken = "?v=";
+	  var i = v.indexOf(searchToken);
+
+	  if(i == -1) {
+		  searchToken = "&v=";
+		  i = v.indexOf(searchToken);
+	  }
+
+	  if(i == -1) {
+		  searchToken = "youtu.be/";
+		  i = v.indexOf(searchToken);
+	  }
+
+	  if(i != -1) {
+		  var substr = v.substring(i + searchToken.length);
+		  var j = substr.indexOf("&");
+
+		  if(j == -1) {
+			  j = substr.indexOf("?");
+		  }
+
+		  if(j == -1) {
+			  return substr;
+		  } else {
+			  return substr.substring(0,j);
+		  }
+	  }
+
+	  return v;
+  }
