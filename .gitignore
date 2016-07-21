@@ -29,3 +29,5 @@ node_modules
 
 sftp-config.json
 config.js
+wowbot.js
+livebot.js
