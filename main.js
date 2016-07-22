@@ -210,8 +210,8 @@ let commands = [
 			});
 		}
 	},
-  //Play command. Adds a song to the queue.
-  {
+	//Play command. Adds a song to the queue.
+	{
 		command: 'queue',
 		description: 'Plays the requested video, or adds it to the queue.',
 		params: ["YouTube URL"],
@@ -227,10 +227,10 @@ let commands = [
 				bot.reply(m,"Unauthorized. You're not in the same voicechannel as the bot.")
 			}
 		}
-  },
+	},
 
-  //Stops playback and clears the whole queue.
-  {
+	//Stops playback and clears the whole queue.
+	{
 		command: 'stop',
 		description: 'Stops the current song and clears the queue.',
 		params: [],
@@ -243,9 +243,9 @@ let commands = [
 				bot.reply(m,"Unauthorized. You're not in the same voicechannel as the bot.")
 			}
 		}
-  },
+	},
 
-  //Pauses playback. Sets the pause variable to true so that the checkQueue function doesn't think the song has ended.
+	//Pauses playback. Sets the pause variable to true so that the checkQueue function doesn't think the song has ended.
 	{
 		command: 'pause',
 		description: 'Pauses the current playlist.',
@@ -267,8 +267,8 @@ let commands = [
 		}
 	},
 
-  //Resumes the playlist, if it is paused.
-  {
+	//Resumes the playlist, if it is paused.
+	{
 		command: 'resume',
 		description: 'Resumes the playlist',
 		params: [],
@@ -286,10 +286,10 @@ let commands = [
 				bot.reply(m,"Unauthorized. You're not in the same voicechannel as the bot.")
 			}
 		}
-  },
+	},
 
-  //Skip the current song in the queue, play the next one.
-  {
+	//Skip the current song in the queue, play the next one.
+	{
 		command: 'skip',
 		description: 'Skips the current song.',
 		params: [],
@@ -303,10 +303,10 @@ let commands = [
 				bot.reply(m,"Unauthorized. You're not in the same voicechannel as the bot.")
 			}
 		}
-  },
+	},
 
-  //Set the volume of the bot. 100% is loud. Very loud.
-  {
+	//Set the volume of the bot. 100% is loud. Very loud.
+	{
 		command: 'volume',
 		description: 'Sets the volume of the bot between 0-200%',
 		params: ['percentage'],
@@ -323,7 +323,7 @@ let commands = [
 				bot.reply(m,"Unauthorized. You're not in the same voicechannel as the bot.")
 			}
 		}
-  }
+  	}
 ]
 
 ///////////////////////
@@ -331,13 +331,13 @@ let commands = [
 ///////////////////////
 
 bot.on('message', (m) => {
-  if (m.author.id !== bot.user.id) { // <--- check that the bot didn't send the message. Very important. Mistakes were made.
-    if (m.channel.topic !== undefined) { // <--- If channel topic is undefined, then this is a DM to the bot. We don't want to run commands in a DM. It breaks things.
-      if (m.content[0] == "/") { // <--- Check if the first character of the message is a !.
-        executeCommand(m, m.content.substring(1)); // If the first character is !, run executeCommand.
-      }
-    }
-  }
+	if (m.author.id !== bot.user.id) { // <--- check that the bot didn't send the message. Very important. Mistakes were made.
+		if (m.channel.topic !== undefined) { // <--- If channel topic is undefined, then this is a DM to the bot. We don't want to run commands in a DM. It breaks things.
+			if (m.content[0] == "/") { // <--- Check if the first character of the message is a !.
+				executeCommand(m, m.content.substring(1)); // If the first character is !, run executeCommand.
+			}
+		}
+	}
 });
 
 
@@ -365,33 +365,33 @@ bot.once('ready', () => {
 	checkQueue();
 });
 
-bot.loginWithToken(config.testbot).catch((e) => {
-  try {
-    console.log(e);
-  } catch (err) {
-    console.log(e);
+bot.loginWithToken(config.bot).catch((e) => {
+	try {
+		console.log(e);
+	} catch (err) {
+		console.log(e);
 	}
 });
 
 process.on('uncaughtException', function(err) {
-  // Handle ECONNRESETs caused by `next` or `destroy`
-  if (err.code == 'ECONNRESET') {
-    // Yes, I'm aware this is really bad node code. However, the uncaught exception
-    // that causes this error is buried deep inside either discord.js, ytdl or node
-    // itself and after countless hours of trying to debug this issue I have simply
-    // given up. The fact that this error only happens *sometimes* while attempting
-    // to skip to the next video (at other times, I used to get an EPIPE, which was
-    // clearly an error in discord.js and was now fixed) tells me that this problem
-    // can actually be safely prevented using uncaughtException. Should this bother
-    // you, you can always try to debug the error yourself and make a PR.
-    console.log('Got an ECONNRESET! This is *probably* not an error. Stacktrace:');
-    console.log(err.stack);
-  } else {
-    // Normal error handling
-    console.log(err);
-    console.log(err.stack);
-    process.exit(0);
-  }
+	// Handle ECONNRESETs caused by `next` or `destroy`
+	if (err.code == 'ECONNRESET') {
+		// Yes, I'm aware this is really bad node code. However, the uncaught exception
+		// that causes this error is buried deep inside either discord.js, ytdl or node
+		// itself and after countless hours of trying to debug this issue I have simply
+		// given up. The fact that this error only happens *sometimes* while attempting
+		// to skip to the next video (at other times, I used to get an EPIPE, which was
+		// clearly an error in discord.js and was now fixed) tells me that this problem
+		// can actually be safely prevented using uncaughtException. Should this bother
+		// you, you can always try to debug the error yourself and make a PR.
+		console.log('Got an ECONNRESET! This is *probably* not an error. Stacktrace:');
+		console.log(err.stack);
+	} else {
+		// Normal error handling
+		console.log(err);
+		console.log(err.stack);
+		process.exit(0);
+	}
 });
 
 /////////////////////
@@ -399,26 +399,26 @@ process.on('uncaughtException', function(err) {
 /////////////////////
 
 function executeCommand(m, c) { // Called when the user types a command in chat
-  let params = c.split(' '); // Split the command into individual words.
-  let command = null; // used in the loop below
+	let params = c.split(' '); // Split the command into individual words.
+	let command = null; // used in the loop below
 
-  for (let i = 0; i < commands.length; i++) { // Loop through commands array
-    if (commands[i].command == params[0].toLowerCase()) { // Check if command matches the one typed
-      command = commands[i]; // Set it to variable 'command'. Maybe break out of the loop. I'll sort that out later.
-    }
-  }
+	for (let i = 0; i < commands.length; i++) { // Loop through commands array
+		if (commands[i].command == params[0].toLowerCase()) { // Check if command matches the one typed
+			command = commands[i]; // Set it to variable 'command'. Maybe break out of the loop. I'll sort that out later.
+		}
+	}
 
-  if (command !== null) { // If no matching command was set in the loop, 'command' will still be null. Otherwise, run the command.
-    if (params.length-1 < command.params.length) { // check that the command has enough parameters. Might move this check to the command itself, since some params are optional.
-      bot.reply(m, 'Insufficient parameters'); // Reply to the user, tell them to add params.
-      commandHelp(m, command.command); // Display help message for specific command.
-    }
-    else {
-      command.execute(m, params); // Run the 'execute' function stored in the command object.
-    }
-  }else{
-  	bot.sendMessage(m.channel,"Unknown command");
-  }
+	if (command !== null) { // If no matching command was set in the loop, 'command' will still be null. Otherwise, run the command.
+	if (params.length-1 < command.params.length) { // check that the command has enough parameters. Might move this check to the command itself, since some params are optional.
+	bot.reply(m, 'Insufficient parameters'); // Reply to the user, tell them to add params.
+		commandHelp(m, command.command); // Display help message for specific command.
+	}
+	else {
+		command.execute(m, params); // Run the 'execute' function stored in the command object.
+	}
+	}else{
+		bot.sendMessage(m.channel,"Unknown command");
+	}
 }
 
 function commandHelp(m, p) {
@@ -542,24 +542,25 @@ function gameData(u,g){
 function play(m, ytUrl) { // called when a user requests a song to add to the queue
   ytdl.getInfo(ytUrl, function(error, info) {
     let mus = ytdl.downloadFromInfo(info);
+    let username = (m.channel.server.detailsOf(m.author).nick == null)?m.author.username:m.channel.server.detailsOf(m.author).nick;
     queue.push({
     	title: info.title,
-    	user: m.author.username,
+    	user: username,
     	stream: mus
     });
-    bot.sendMessage(m.channel, info.title+" has been added to the queue by "+m.author.username); // Tell everyone what song was added and by who.
+    bot.sendMessage(m.channel, info.title+" has been added to the queue by "+username); // Tell everyone what song was added and by who.
 	});
 }
 
 function checkQueue() { // called every 5 seconds.
-  if (queue.length !== 0 && !bot.voiceConnection.playing && !paused) { // check that the queue is not empty, the bot is not playing something, and the playlist is not paused.
-    playNext(); // play next song if above conditions are met
-  }
-  setTimeout(checkQueue, 5000); // run this function again in 5 seconds
+	if (queue.length !== 0 && !bot.voiceConnection.playing && !paused) { // check that the queue is not empty, the bot is not playing something, and the playlist is not paused.
+		playNext(); // play next song if above conditions are met
+	}
+	setTimeout(checkQueue, 5000); // run this function again in 5 seconds
 }
 
 function playNext() { // called when a user runs the /stop command, or when a song ends
 	bot.voiceConnection.playRawStream(queue[0].stream);
-  bot.sendMessage(textChannel, 'Now playing "'+queue[0].title+'", requested by '+queue[0].user); // more messaging
-  queue.splice(0,1); // Remove the song we just played from the queue, so queue[0] is always the next song.
+	bot.sendMessage(textChannel, 'Now playing "'+queue[0].title+'", requested by '+queue[0].user); // more messaging
+	queue.splice(0,1); // Remove the song we just played from the queue, so queue[0] is always the next song.
 }
