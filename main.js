@@ -216,7 +216,7 @@ let commands = [
 		description: 'Plays the requested video, or adds it to the queue.',
 		params: ["YouTube URL"],
 		execute: (m, p) => {
-			if(m.author.voiceChannel === bot.channels.get("type","voice")){
+			if(m.author.voiceChannel === bot.voiceConnection.voiceChannel){
 				if(p[1].startsWith("http")){
 					play(m, p[1]);
 				}else{
@@ -235,7 +235,7 @@ let commands = [
 		description: 'Stops the current song and clears the queue.',
 		params: [],
 		execute: (m, p) => {
-			if(m.author.voiceChannel === bot.channels.get("type","voice")){
+			if(m.author.voiceChannel === bot.voiceConnection.voiceChannel){
 				bot.sendMessage(m.channel, "Stopping...");
 				bot.voiceConnection.stopPlaying();
 				queue = [];
@@ -251,7 +251,7 @@ let commands = [
 		description: 'Pauses the current playlist.',
 		params: [],
 		execute: (m, p) => {
-			if(m.author.voiceChannel === bot.channels.get("type","voice")){
+			if(m.author.voiceChannel === bot.voiceConnection.voiceChannel){
 				//Check if playback is already paused.
 				if (!paused) {
 					bot.voiceConnection.pause();
@@ -273,7 +273,7 @@ let commands = [
 		description: 'Resumes the playlist',
 		params: [],
 		execute: (m, p) => {
-			if(m.author.voiceChannel === bot.channels.get("type","voice")){
+			if(m.author.voiceChannel === bot.voiceConnection.voiceChannel){
 				if (!paused) {
 					bot.sendMessage(m.channel, "Playback isn't paused.");
 				}
@@ -294,7 +294,7 @@ let commands = [
 		description: 'Skips the current song.',
 		params: [],
 		execute: (m, p) => {
-			if(m.author.voiceChannel === bot.channels.get("type","voice")){
+			if(m.author.voiceChannel === bot.voiceConnection.voiceChannel){
 				console.log('test');
 				bot.voiceConnection.stopPlaying();
 				paused = false;
@@ -311,7 +311,7 @@ let commands = [
 		description: 'Sets the volume of the bot between 0-200%',
 		params: ['percentage'],
 		execute: (m, p) => {
-			if(m.author.voiceChannel === bot.channels.get("type","voice")){
+			if(m.author.voiceChannel === bot.voiceConnection.voiceChannel){
 				if (p[1] <= 200 && p[1] >= 0) {
 					bot.voiceConnection.setVolume(p[1]/100); // volume is actually set between 0 and 2, but percentages are easier for users to understand.
 					bot.sendMessage(m.channel, `Setting volume to ${p[1]}%`);
