@@ -141,7 +141,7 @@ let commands = [
 				let ug = userGames[i];
 				if(ug.id != m.author.id){continue;}
 				started = ug.started
-				game = ug.name;
+				game = ug.game;
 			}
 			if(game != "" && started > 0){
 				let x = (ended-started) / 1000;
@@ -168,6 +168,7 @@ let commands = [
 		],
 		execute: (m, p) => {
 			let res = ("___***"+m.content.substring(6,m.content.length)+"!***___").toUpperCase();
+			bot.deleteMessage(m);
 			bot.sendMessage(m.channel,res);
 		}
 	},
